@@ -13,7 +13,7 @@ if($IsCloudLabs){
         $userName = $AzureUserName                # READ FROM FILE
         $password = $AzurePassword                # READ FROM FILE
         $clientId = $TokenGeneratorClientId       # READ FROM FILE
-        #$global:sqlPassword = $AzureSQLPassword          # READ FROM FILE
+        $global:sqlPassword = $AzureSQLPassword          # READ FROM FILE
 
         $securePassword = $password | ConvertTo-SecureString -AsPlainText -Force
         $cred = new-object -typename System.Management.Automation.PSCredential -argumentlist $userName, $SecurePassword
@@ -131,9 +131,9 @@ Set-AzKeyVaultAccessPolicy -ResourceGroupName $resourceGroupName -VaultName $key
 Set-AzKeyVaultAccessPolicy -ResourceGroupName $resourceGroupName -VaultName $keyVaultName -ObjectId $id -PermissionsToSecrets set,delete,get,list
 
 #remove need to ask for the password in script.
-$sqlPasswordSecret = Get-AzKeyVaultSecret -VaultName $keyVaultName -Name "SqlPassword"
+#$sqlPasswordSecret = Get-AzKeyVaultSecret -VaultName $keyVaultName -Name "SqlPassword"
 #$global:sqlPassword = $(Get-AzKeyVaultSecret -VaultName $keyVaultName -Name "SqlPassword").SecretValueText
-$global:sqlPassword = ConvertFrom-SecureString -SecureString $sqlPasswordSecret.SecretValue -AsPlainText #| ConvertFrom-SecureString -AsPlainText
+#$global:sqlPassword = ConvertFrom-SecureString -SecureString $sqlPasswordSecret.SecretValue -AsPlainText #| ConvertFrom-SecureString -AsPlainText
 
 Write-Information "Create SQL-USER-ASA Key Vault Secret in Key Vault $($keyVaultName)"
 $secretValue = ConvertTo-SecureString $sqlPassword -AsPlainText -Force
