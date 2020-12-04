@@ -1,0 +1,30 @@
+[
+  {
+    "Name": "Azure Synapse Analytics Workshop- 300",
+    "Language": "English",
+    "Files": [
+      {
+        "RawFilePath": "https://raw.githubusercontent.com/SpektraSystems/azure-synapse-analytics-workshop-400/master/labintro.md",
+        "Order": 1
+
+      },
+      {
+        "RawFilePath": "https://raw.githubusercontent.com/solliancenet/azure-synapse-analytics-workshop-300-2-day/master/day-01/poc-challenge-1.md",
+        "Order": 2
+
+      },
+      {
+        "RawFilePath": "https://raw.githubusercontent.com/solliancenet/azure-synapse-analytics-workshop-300-2-day/master/day-01/poc-challenge-2.md",
+        "Order": 3
+      },
+      {
+        "RawFilePath": "https://raw.githubusercontent.com/solliancenet/azure-synapse-analytics-workshop-300-2-day/master/day-02/poc-challenge-3.md",
+        "Order": 4
+      },
+      {
+        "RawFilePath": "https://raw.githubusercontent.com/solliancenet/azure-synapse-analytics-workshop-300-2-day/master/day-02/poc-challenge-4.md",
+        "Order": 5
+      }
+    ]
+  }
+]
