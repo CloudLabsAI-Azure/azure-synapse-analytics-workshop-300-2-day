@@ -48,6 +48,34 @@ function InstallAzPowerShellModule
   Install-Module Az -Repository PSGallery -Force -AllowClobber
 }
 
+#Disable PopUp for network configuration
+Function DisableServerMgrNetworkPopup
+    {
+        cd HKLM:\
+        New-Item -Path HKLM:\System\CurrentControlSet\Control\Network -Name NewNetworkWindowOff -Force 
+
+		Get-ScheduledTask -TaskName ServerManager | Disable-ScheduledTask -Verbose
+    }
+ 
+ #Install edge browser
+ Function InstallEdgeChromium
+    {
+        #Download and Install edge
+        $WebClient = New-Object System.Net.WebClient
+        $WebClient.DownloadFile("http://dl.delivery.mp.microsoft.com/filestreamingservice/files/6d88cf6b-a578-468f-9ef9-2fea92f7e733/MicrosoftEdgeEnterpriseX64.msi","C:\Packages\MicrosoftEdgeBetaEnterpriseX64.msi")
+        sleep 5
+        
+	    Start-Process msiexec.exe -Wait '/I C:\Packages\MicrosoftEdgeBetaEnterpriseX64.msi /qn' -Verbose 
+        sleep 5
+        $WshShell = New-Object -comObject WScript.Shell
+        $Shortcut = $WshShell.CreateShortcut("C:\Users\Public\Desktop\Azure Portal.lnk")
+        $Shortcut.TargetPath = """C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"""
+        $argA = """https://portal.azure.com"""
+        $Shortcut.Arguments = $argA 
+        $Shortcut.Save()
+
+    }
+    
 #Create-LabFilesDirectory
 function CreateLabFilesDirectory
 {
@@ -89,7 +117,13 @@ DisableInternetExplorerESC
 
 EnableIEFileDownload
 
+DisableServerMgrNetworkPopup
+
 InstallAzPowerShellModule
+
+InstallEdgeChromium
+
+Uninstall-AzureRm -ea SilentlyContinue
 
 CreateLabFilesDirectory
 
@@ -140,10 +174,8 @@ $wclient.DownloadFile($url, $output)
 (Get-Content -Path "c:\LabFiles\parameters.json") | ForEach-Object {$_ -Replace "GET-DEPLOYMENT-ID", "$deploymentId"} | Set-Content -Path "c:\LabFiles\parameters.json"
 
 New-AzResourceGroupDeployment -ResourceGroupName $resourceGroupName `
-  -TemplateUri "https://raw.githubusercontent.com/solliancenet/azure-synapse-analytics-workshop-400/master/artifacts/environment-setup/automation/00-asa-workspace-core.json" `
+  -TemplateUri "https://raw.githubusercontent.com/solliancenet/azure-synapse-analytics-workshop-300-2-day/master/artifacts/environment-setup/automation/00-asa-workspace-core.json" `
   -TemplateParameterFile "c:\LabFiles\parameters.json"
-
-Uninstall-AzureRm
 
 #install cosmosdb
 Install-Module -Name Az.CosmosDB -AllowClobber
@@ -152,12 +184,26 @@ Import-Module Az.CosmosDB
 $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine")
 
 #download the git repo...
-git clone https://github.com/solliancenet/azure-synapse-analytics-workshop-400.git synapse-ws-L300
+git clone https://github.com/CloudLabsAI-Azure/azure-synapse-analytics-workshop-300-2-day.git synapse-ws-L300
 
-cd './synapse-ws-L300/artifacts/environment-setup/automation'
+$LabFilesDirectory = "C:\LabFiles"
 
-./01-environment-setup.ps1
-./03-environment-validation.ps1
+$WebClient = New-Object System.Net.WebClient
+$WebClient.DownloadFile("https://raw.githubusercontent.com/CloudLabsAI-Azure/azure-synapse-analytics-workshop-300-2-day/master/artifacts/environment-setup/spektra/logontask.ps1","C:\LabFiles\logontask.ps1")
 
-sleep 20
+#Enable Autologon
+$AutoLogonRegPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
+Set-ItemProperty -Path $AutoLogonRegPath -Name "AutoAdminLogon" -Value "1" -type String 
+Set-ItemProperty -Path $AutoLogonRegPath -Name "DefaultUsername" -Value "$($env:ComputerName)\wsuser" -type String  
+Set-ItemProperty -Path $AutoLogonRegPath -Name "DefaultPassword" -Value "Password.1!!" -type String
+Set-ItemProperty -Path $AutoLogonRegPath -Name "AutoLogonCount" -Value "1" -type DWord
+
+# Scheduled Task
+$Trigger= New-ScheduledTaskTrigger -AtLogOn
+$User= "$($env:ComputerName)\wsuser" 
+$Action= New-ScheduledTaskAction -Execute "C:\Windows\System32\WindowsPowerShell\v1.0\Powershell.exe" -Argument "-executionPolicy Unrestricted -File $LabFilesDirectory\logontask.ps1"
+Register-ScheduledTask -TaskName "Setup" -Trigger $Trigger -User $User -Action $Action -RunLevel Highest -Force 
+
+Restart-Computer -Force
+
 Stop-Transcript
