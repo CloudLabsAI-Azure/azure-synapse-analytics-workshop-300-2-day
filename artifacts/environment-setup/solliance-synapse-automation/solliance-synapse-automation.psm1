@@ -10,6 +10,143 @@ function AutoPauseAllPS()
         }
     }
 }
+function Ensure-ValidToken {
+    param(
+        [parameter(Mandatory=$true)][String]$TokenName,
+        [Boolean]$force=$false
+    )
+
+    $refTime = Get-Date
+
+    if (($refTime - $tokenTimes[$TokenName]).TotalMinutes -gt 30 -or $force) {
+        Write-Information "Refreshing $($TokenName) token."
+        Refresh-Token $TokenName
+        $tokenTimes[$TokenName] = $refTime
+    }
+    
+    #Refresh-Token;
+}
+function Wait-ForSQLPool {
+
+    param(
+    [parameter(Mandatory=$true)]
+    [String]
+    $SubscriptionId,
+
+    [parameter(Mandatory=$true)]
+    [String]
+    $ResourceGroupName,
+
+    [parameter(Mandatory=$true)]
+    [String]
+    $WorkspaceName,
+
+    [parameter(Mandatory=$true)]
+    [String]
+    $SQLPoolName,
+
+    [parameter(Mandatory=$false)]
+    [String]
+    $TargetStatus
+    )
+
+    Write-Information "Waiting for any pending operation to be properly triggered..."
+    Start-Sleep -Seconds 20
+
+    $result = Get-SQLPool -SubscriptionId $SubscriptionId -ResourceGroupName $ResourceGroupName -WorkspaceName $WorkspaceName -SQLPoolName $SQLPoolName
+
+    if ($TargetStatus) {
+        while ($result.properties.status -ne $TargetStatus) {
+            Write-Information "Current status is $($result.properties.status). Waiting for $($TargetStatus) status..."
+            Start-Sleep -Seconds 10
+            $result = Get-SQLPool -SubscriptionId $SubscriptionId -ResourceGroupName $ResourceGroupName -WorkspaceName $WorkspaceName -SQLPoolName $SQLPoolName
+        }
+    }
+
+    Write-Information "The SQL pool has now the $($TargetStatus) status."
+    return $result
+}
+function Control-SQLPool {
+
+    param(
+    [parameter(Mandatory=$true)]
+    [String]
+    $SubscriptionId,
+
+    [parameter(Mandatory=$true)]
+    [String]
+    $ResourceGroupName,
+
+    [parameter(Mandatory=$true)]
+    [String]
+    $WorkspaceName,
+
+    [parameter(Mandatory=$true)]
+    [String]
+    $SQLPoolName,
+
+    [parameter(Mandatory=$true)]
+    [String]
+    $Action,
+
+    [parameter(Mandatory=$false)]
+    [String]
+    $SKU
+    )
+
+    $uri = "https://management.azure.com/subscriptions/$($SubscriptionId)/resourcegroups/$($ResourceGroupName)/providers/Microsoft.Synapse/workspaces/$($WorkspaceName)/sqlPools/$($SQLPoolName)#ACTION#?api-version=2019-06-01-preview"
+    $method = "POST"
+    $body = $null
+
+    if (($Action.ToLowerInvariant() -eq "pause") -or ($Action.ToLowerInvariant() -eq "resume")) {
+
+        $uri = $uri.Replace("#ACTION#", "/$($Action)")
+
+    } elseif ($Action.ToLowerInvariant() -eq "scale") {
+        
+        $uri = $uri.Replace("#ACTION#", "")
+        $method = "PATCH"
+        $body = "{""sku"":{""name"":""$($SKU)""}}"
+
+    } else {
+        
+        throw "The $($Action) control action is not supported."
+
+    }
+
+    Ensure-ValidTokens
+    $result = Invoke-RestMethod  -Uri $uri -Method $method -Body $body -Headers @{ Authorization="Bearer $managementToken" } -ContentType "application/json"
+
+    return $result
+}
+function Get-SQLPool {
+
+    param(
+    [parameter(Mandatory=$true)]
+    [String]
+    $SubscriptionId,
+
+    [parameter(Mandatory=$true)]
+    [String]
+    $ResourceGroupName,
+
+    [parameter(Mandatory=$true)]
+    [String]
+    $WorkspaceName,
+
+    [parameter(Mandatory=$true)]
+    [String]
+    $SQLPoolName
+    )
+
+    $uri = "https://management.azure.com/subscriptions/$($SubscriptionId)/resourcegroups/$($ResourceGroupName)/providers/Microsoft.Synapse/workspaces/$($WorkspaceName)/sqlPools/$($SQLPoolName)?api-version=2019-06-01-preview"
+
+    Ensure-ValidTokens
+    $result = Invoke-RestMethod  -Uri $uri -Method GET -Headers @{ Authorization="Bearer $managementToken" } -ContentType "application/json"
+
+    return $result
+}
+
 
 function AutoPauseAll($subscriptionId)
 {
@@ -36,7 +173,60 @@ function AutoPauseAll($subscriptionId)
         }
     }
 }
+function Refresh-Token {
+    param(
+    [parameter(Mandatory=$true)]
+    [String]
+    $TokenType
+    )
 
+    if(Test-Path C:\LabFiles\AzureCreds.ps1){
+        if ($TokenType -eq "Synapse") {
+            $result = Invoke-RestMethod  -Uri "https://login.microsoftonline.com/$($global:logindomain)/oauth2/v2.0/token" `
+                -Method POST -Body $global:ropcBodySynapse -ContentType "application/x-www-form-urlencoded"
+            $global:synapseToken = $result.access_token
+        } elseif ($TokenType -eq "SynapseSQL") {
+            $result = Invoke-RestMethod  -Uri "https://login.microsoftonline.com/$($global:logindomain)/oauth2/v2.0/token" `
+                -Method POST -Body $global:ropcBodySynapseSQL -ContentType "application/x-www-form-urlencoded"
+            $global:synapseSQLToken = $result.access_token
+        } elseif ($TokenType -eq "Management") {
+            $result = Invoke-RestMethod  -Uri "https://login.microsoftonline.com/$($global:logindomain)/oauth2/v2.0/token" `
+                -Method POST -Body $global:ropcBodyManagement -ContentType "application/x-www-form-urlencoded"
+            $global:managementToken = $result.access_token
+        } elseif ($TokenType -eq "PowerBI") {
+            $result = Invoke-RestMethod  -Uri "https://login.microsoftonline.com/$($global:logindomain)/oauth2/v2.0/token" `
+                -Method POST -Body $global:ropcBodyPowerBI -ContentType "application/x-www-form-urlencoded"
+            $global:powerbitoken = $result.access_token
+        }
+        else {
+            throw "The token type $($TokenType) is not supported."
+        }
+    } else {
+        switch($TokenType) {
+            "Synapse" {
+                $tokenValue = ((az account get-access-token --resource https://dev.azuresynapse.net) | ConvertFrom-Json).accessToken
+                $global:synapseToken = $tokenValue; 
+                break;
+            }
+            "SynapseSQL" {
+                $tokenValue = ((az account get-access-token --resource https://sql.azuresynapse.net) | ConvertFrom-Json).accessToken
+                $global:synapseSQLToken = $tokenValue; 
+                break;
+            }
+            "Management" {
+                $tokenValue = ((az account get-access-token --resource https://management.azure.com) | ConvertFrom-Json).accessToken
+                $global:managementToken = $tokenValue; 
+                break;
+            }
+            "PowerBI" {
+                $tokenValue = ((az account get-access-token --resource https://analysis.windows.net/powerbi/api) | ConvertFrom-Json).accessToken
+                $global:powerbitoken = $tokenValue; 
+                break;
+            }
+            default {throw "The token type $($TokenType) is not supported.";}
+        }
+    }
+}
 function GetSqlPools($subscriptionId, $rgName, $workspaceName)
 {
     $uri = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$rgName/providers/Microsoft.Synapse/workspaces/$WorkspaceName/sqlPools?api-version=2019-06-01"
@@ -811,7 +1001,7 @@ function Get-SQLPool {
 
     $uri = "https://management.azure.com/subscriptions/$($SubscriptionId)/resourcegroups/$($ResourceGroupName)/providers/Microsoft.Synapse/workspaces/$($WorkspaceName)/sqlPools/$($SQLPoolName)?api-version=2019-06-01-preview"
 
-    Confirm-ValidTokens
+    Ensure-ValidTokens
     $result = Invoke-RestMethod  -Uri $uri -Method GET -Headers @{ Authorization="Bearer $managementToken" } -ContentType "application/json"
 
     return $result
@@ -1216,6 +1406,16 @@ function New-SparkNotebook {
     $result = Invoke-RestMethod  -Uri $uri -Method PUT -Body $item -Headers @{ Authorization="Bearer $synapseToken" } -ContentType "application/json"
     
     return $result
+}
+function Ensure-ValidTokens
+{
+    param(
+        [Boolean]$force=$false
+    )
+
+    for ($i = 0; $i -lt $tokenTimes.Count; $i++) {
+        Ensure-ValidToken $($tokenTimes.Keys)[$i] $force
+    }
 }
 
 function Start-SparkNotebookSession {
@@ -1683,6 +1883,7 @@ Export-ModuleMember -Function Get-ASAObject
 Export-ModuleMember -Function Set-SqlPool
 Export-ModuleMember -Function Get-SQLPool
 Export-ModuleMember -Function Wait-ForSQLPool
+Export-ModuleMember -Function Control-SQLPool
 Export-ModuleMember -Function Invoke-SqlQuery
 Export-ModuleMember -Function Invoke-SqlScriptFile
 Export-ModuleMember -Function Wait-ForSQLQuery
@@ -1705,3 +1906,6 @@ Export-ModuleMember -Function Confirm-HttpRedirect
 Export-ModuleMember -Function GetCSRF
 Export-ModuleMember -Function AutoPauseAll
 Export-ModuleMember -Function Set-SqlAdministrator
+Export-ModuleMember -Function Ensure-ValidTokens
+Export-ModuleMember -Function Ensure-ValidToken
+Export-ModuleMember -Function Refresh-Token
