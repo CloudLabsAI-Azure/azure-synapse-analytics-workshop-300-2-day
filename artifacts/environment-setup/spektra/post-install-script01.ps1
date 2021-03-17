@@ -127,8 +127,6 @@ Uninstall-AzureRm -ea SilentlyContinue
 
 CreateLabFilesDirectory
 
-$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine")
-
 cd "c:\labfiles";
 
 CreateCredFile $azureUsername $azurePassword $azureTenantID $azureSubscriptionID $deploymentId $odlId
