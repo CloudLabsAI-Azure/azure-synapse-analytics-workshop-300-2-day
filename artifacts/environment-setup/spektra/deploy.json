@@ -149,11 +149,11 @@
           },
           "storageProfile": {
             "imageReference": {
-              "publisher": "microsoftvisualstudio",
-              "offer": "visualstudio2019latest",
-              "sku": "vs-2019-ent-latest-ws2019",
-              "version": "latest"
-            },
+            "publisher": "MicrosoftWindowsServer",
+            "offer": "WindowsServer",
+            "sku": "2019-Datacenter",
+            "version": "latest"
+          },
             "osDisk": {
               "createOption": "fromImage",
               "name": "[concat(variables('vmName'), '-osdisk')]",
