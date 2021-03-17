@@ -174,7 +174,7 @@ $wclient.DownloadFile($url, $output)
 (Get-Content -Path "c:\LabFiles\parameters.json") | ForEach-Object {$_ -Replace "GET-DEPLOYMENT-ID", "$deploymentId"} | Set-Content -Path "c:\LabFiles\parameters.json"
 
 New-AzResourceGroupDeployment -ResourceGroupName $resourceGroupName `
-  -TemplateUri "https://raw.githubusercontent.com/solliancenet/azure-synapse-analytics-workshop-300-2-day/master/artifacts/environment-setup/automation/00-asa-workspace-core.json" `
+  -TemplateUri "https://raw.githubusercontent.com/CloudLabsAI-Azure/azure-synapse-analytics-workshop-300-2-day/master/artifacts/environment-setup/automation/00-asa-workspace-core.json" `
   -TemplateParameterFile "c:\LabFiles\parameters.json"
 
 #install cosmosdb
